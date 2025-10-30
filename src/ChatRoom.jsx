@@ -59,16 +59,23 @@ export default function ChatRoom() {
 
   // Subscribe to messages: if room selected → scoped; else → legacy global chat
   useEffect(() => {
-    let qRef;
-    if (selectedRoom?.id) {
-      qRef = query(
-        collection(db, "messages"),
-        where("roomId", "==", selectedRoom.id),
-        orderBy("createdAt")
-      );
-    } else {
-      qRef = query(collection(db, "messages"), orderBy("createdAt"));
+    // If the user hasn't joined any rooms, don't subscribe to any messages.
+    if (!hasRooms) {
+      setMessages([]);
+      return;
     }
+
+    // Only subscribe to messages for the currently selected room. Global (all-room) feed is disabled.
+    if (!selectedRoom?.id) {
+      setMessages([]);
+      return;
+    }
+
+    const qRef = query(
+      collection(db, "messages"),
+      where("roomId", "==", selectedRoom.id),
+      orderBy("createdAt")
+    );
 
     // Primary subscription with orderBy
     const unsubscribe = onSnapshot(
@@ -82,9 +89,7 @@ export default function ChatRoom() {
         console.error("Realtime messages error:", err);
         // Fall back without orderBy if index is required or another precondition fails
         if (err?.code === "failed-precondition" || err?.message?.includes("index")) {
-          const fallbackRef = selectedRoom?.id
-            ? query(collection(db, "messages"), where("roomId", "==", selectedRoom.id))
-            : collection(db, "messages");
+          const fallbackRef = query(collection(db, "messages"), where("roomId", "==", selectedRoom.id));
           return onSnapshot(fallbackRef, snap => {
             const docs = snap.docs
               .map(d => ({ id: d.id, ...d.data() }))
@@ -101,7 +106,7 @@ export default function ChatRoom() {
     );
 
     return () => unsubscribe && unsubscribe();
-  }, [selectedRoom?.id]);
+  }, [selectedRoom?.id, hasRooms]);
 
   // Subscribe to participants for the selected room
   useEffect(() => {
@@ -195,6 +200,11 @@ export default function ChatRoom() {
   const handleSend = async () => {
     if (!hasRooms) {
       alert("Please join a team to send messages.");
+      return;
+    }
+
+    if (!selectedRoom?.id) {
+      alert("Please select a room to send messages.");
       return;
     }
 
@@ -417,51 +427,60 @@ export default function ChatRoom() {
 
         <section className="chat-main">
           <div className="messages">
-        {messages.map(msg => {
-            const isCurrentUser = msg.uid === auth.currentUser.uid;
-            return (
-                <div key={msg.id} className={`message-row ${isCurrentUser ? "message-right" : "message-left"}`}>
-                <div className="message-bubble">
-                    <div className="sender-info">
-                      <span className="sender-name">{msg.senderName || "Unknown User"}</span>
-                      <span className="sender-role">({msg.senderRole || "Unknown Role"})</span>
-                      {isCurrentUser && <span className="you-indicator">(You)</span>}
-                    </div>
-
-                    {msg.text && <p className="message-text">{msg.text}</p>}
-
-                    {msg.file && (
-                      <div className="file-container">
-                        {msg.fileType.startsWith("image") && (
-                          <img src={msg.file} alt="Uploaded image" className="message-file" />
-                        )}
-                        
-                        {msg.fileType.startsWith("video") && (
-                          <video src={msg.file} controls className="message-file" />
-                        )}
-                        
-                        {(msg.fileType.includes("pdf") || msg.fileName?.endsWith(".pdf")) && (
-                          <div className="file-link-container">
-                            <a href={msg.file} target="_blank" rel="noopener noreferrer" className="message-file-link">
-                              📄 {msg.fileName || "View PDF"}
-                            </a>
-                          </div>
-                        )}
-                        
-                        {(msg.fileType.includes("pptx") || msg.fileName?.endsWith(".pptx")) && (
-                          <div className="file-link-container">
-                            <a href={msg.file} target="_blank" rel="noopener noreferrer" className="message-file-link">
-                              📊 {msg.fileName || "View PPT"}
-                            </a>
-                          </div>
-                        )}
+            {!hasRooms ? (
+              <div className="no-messages-placeholder">
+                <p className="muted">Please join a team to view messages.</p>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="no-messages-placeholder">
+                <p className="muted">No messages in this room yet.</p>
+              </div>
+            ) : (
+              messages.map(msg => {
+                const isCurrentUser = msg.uid === auth.currentUser.uid;
+                return (
+                  <div key={msg.id} className={`message-row ${isCurrentUser ? "message-right" : "message-left"}`}>
+                    <div className="message-bubble">
+                      <div className="sender-info">
+                        <span className="sender-name">{msg.senderName || "Unknown User"}</span>
+                        <span className="sender-role">({msg.senderRole || "Unknown Role"})</span>
+                        {isCurrentUser && <span className="you-indicator">(You)</span>}
                       </div>
-                    )}
-                </div>
-                </div>
-            );
-            })}
 
+                      {msg.text && <p className="message-text">{msg.text}</p>}
+
+                      {msg.file && (
+                        <div className="file-container">
+                          {msg.fileType.startsWith("image") && (
+                            <img src={msg.file} alt="Uploaded image" className="message-file" />
+                          )}
+
+                          {msg.fileType.startsWith("video") && (
+                            <video src={msg.file} controls className="message-file" />
+                          )}
+
+                          {(msg.fileType.includes("pdf") || msg.fileName?.endsWith(".pdf")) && (
+                            <div className="file-link-container">
+                              <a href={msg.file} target="_blank" rel="noopener noreferrer" className="message-file-link">
+                                📄 {msg.fileName || "View PDF"}
+                              </a>
+                            </div>
+                          )}
+
+                          {(msg.fileType.includes("pptx") || msg.fileName?.endsWith(".pptx")) && (
+                            <div className="file-link-container">
+                              <a href={msg.file} target="_blank" rel="noopener noreferrer" className="message-file-link">
+                                📊 {msg.fileName || "View PPT"}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div className="input-area">
