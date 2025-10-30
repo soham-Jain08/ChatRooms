@@ -22,6 +22,9 @@ export default function ChatRoom() {
   const [showParticipants, setShowParticipants] = useState(true);
   const endOfMessagesRef = useRef(null);
 
+  // Whether the current user has any rooms
+  const hasRooms = rooms.length > 0;
+
   // Cloudinary base endpoint (computed without useMemo to avoid removed state)
   const cloudinaryEndpoint = isCloudinaryConfigured()
     ? `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}`
@@ -190,6 +193,11 @@ export default function ChatRoom() {
   };
 
   const handleSend = async () => {
+    if (!hasRooms) {
+      alert("Please join a team to send messages.");
+      return;
+    }
+
     if (!text.trim()) return;
     
     const user = auth.currentUser;
@@ -220,6 +228,12 @@ export default function ChatRoom() {
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (!hasRooms) {
+      alert("Please join a team to upload files.");
+      e.target.value = "";
+      return;
+    }
 
     console.log("File selected:", file.name, "Size:", file.size, "Type:", file.type);
 
@@ -451,28 +465,36 @@ export default function ChatRoom() {
           </div>
 
           <div className="input-area">
-            <input
-                type="text"
-                placeholder="Type a message..."
-                value={text}
-                onChange={e => setText(e.target.value)}
-                disabled={isUploading}
-            />
-            <input 
-                type="file" 
-                accept="image/*,video/*,.pdf,.pptx" 
-                onChange={handleFile}
-                disabled={isUploading}
-            />
-            <button 
-                className="btn btn-send" 
-                onClick={handleSend}
-                disabled={isUploading}
-            >
-                {isUploading ? `Uploading... ${uploadProgress}%` : "Send"}
-            </button>
-            {isUploading && (
-              <div className="upload-progress" style={{width: `${uploadProgress}%`}}></div>
+            {!hasRooms ? (
+              <div className="no-rooms-message">
+                <p className="muted">Please join a team to send messages.</p>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  disabled={isUploading}
+                />
+                <input
+                  type="file"
+                  accept="image/*,video/*,.pdf,.pptx"
+                  onChange={handleFile}
+                  disabled={isUploading}
+                />
+                <button
+                  className="btn btn-send"
+                  onClick={handleSend}
+                  disabled={isUploading}
+                >
+                  {isUploading ? `Uploading... ${uploadProgress}%` : "Send"}
+                </button>
+                {isUploading && (
+                  <div className="upload-progress" style={{width: `${uploadProgress}%`}}></div>
+                )}
+              </>
             )}
           </div>
         </section>
